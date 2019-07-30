@@ -7,10 +7,9 @@ Created on Sun Jul 28 13:58:22 2019
 
 from textwrap import wrap
 import re
-import itertools
-import tfplot
+import itertools 
 import matplotlib 
-import matplotlib.pyplot as plt
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -156,6 +155,27 @@ sns.heatmap(mat,annot=True, fmt='.2f', cmap='RdYlGn', center =0, xticklabels=x, 
 fig
 """
 
+class HeatMap():
+    def __init__(self):
+        self.idx = 0
+        
+#fig, ax = plt.subplots(figsize=(14,6))    
+    def get_heat_map(self, mat, x, y, color):
+        self.idx+=1
+        fig, ax = plt.subplots(figsize=(14,6), num=self.idx%2, clear=True)
+  
+        if color == "RdYlGn":     # Sample figsize in inches
+            sns.heatmap(mat,annot=True, fmt='.2f', cmap=color, center = 0, xticklabels=y, yticklabels=x, ax=ax) 
+        else:
+            sns.heatmap(mat,annot=True, fmt='.2f', cmap=color, vmin = 0, xticklabels=y, yticklabels=x, ax=ax)
+        
+        plt.close() 
+        return fig
+"""
+
+i=0
+
+#fig, ax = plt.subplots(figsize=(14,6))    
 def get_heat_map(mat, x, y, color):
 ##    print(mat)
 #    fig = matplotlib.figure.Figure(figsize=(14,8))
@@ -167,15 +187,23 @@ def get_heat_map(mat, x, y, color):
 #    texts = annotate_heatmap(im, valfmt="{x:.2f}")
 ##    print("here")
 #    fig.tight_layout()
-    plt.figure()
-    fig, ax = plt.subplots(figsize=(12,6))    
+    print("jjfjfj")
+    i+=1
+    fig, ax = plt.subplots(figsize=(14,6), num=i%2, clear=True)
+    print("fin")
+    
+#    fig, ax = plt.subplots(figsize=(14,6), num=0)
     if color == "RdYlGn":     # Sample figsize in inches
         sns.heatmap(mat,annot=True, fmt='.2f', cmap=color, center = 0, xticklabels=y, yticklabels=x, ax=ax) 
     else:
         sns.heatmap(mat,annot=True, fmt='.2f', cmap=color, vmin = 0, xticklabels=y, yticklabels=x, ax=ax )
     
+    print("plt close")
+    plt.close()
+    print("plt close")
     return fig
 
+"""
 
 def plot_confusion_matrix(correct_labels, predict_labels, labels, title='Confusion matrix', tensor_name = 'MyFigure/image', normalize=False):
     ''' 

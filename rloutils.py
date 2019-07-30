@@ -838,7 +838,7 @@ class Experiment:
             next_state_samples.append(s.next_state)
             action_samples.append(s.action)
             state_samples.append(s.state)
-            reward_samples.append([self.get_normal_reward(s.reward)])
+            reward_samples.append([self.get_polar_normal_reward(s.reward)])
 #            reward_samples.append([s.reward])
             
         loss_value = self.model.training(state_samples, action_samples, next_state_samples,reward_samples,samples)

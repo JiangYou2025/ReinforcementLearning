@@ -8,7 +8,7 @@ import tfplot
 import tensorflow as tf
 import numpy as np
 from tensorflow.python.ops.losses.losses_impl import Reduction
-from sumaryutils import get_heat_map
+from sumaryutils import HeatMap
 
 def variable_summaries(var):
     """Attach a lot of summaries to a Tensor (for TensorBoard visualization).""" 
@@ -70,6 +70,7 @@ class RLModel:
         self.next_action_layer = None
         self.next_critic_layer = None
         
+        self.heatmap = HeatMap()
         
         self.current_steps = None
         self.current_rewards = None
@@ -114,7 +115,7 @@ class RLModel:
         self.current_state_critics = tf.placeholder(dtype=tf.float32, shape=[None, self.state_size + self.critic_size]) 
         self.current_state_actions = tf.placeholder(dtype=tf.float32, shape=[None, self.state_size + self.action_size]) 
         
-        summary_heatmap = tfplot.summary.wrap(get_state_critic_heatmap, batch=False)
+        summary_heatmap = tfplot.summary.wrap(self.get_state_critic_heatmap, batch=False)
 
         summary_heatmap("State Critic Heatmap", self.current_state_critics)
         summary_heatmap("State Action Heatmap", self.current_state_actions)
@@ -131,6 +132,16 @@ class RLModel:
     def _init_model(self, name='basic'):
         if name == 'basic':
             self.actor, self.critic = self._create_basic_model(  self.state_layer, 
+                                                                self.action_layer, 
+                                                                self.next_state_layer, 
+                                                                self.reward_layer, 
+                                                                self.next_action_layer,
+                                                                self.next_critic_layer,
+                                                                self.hidden_layer_size,
+                                                                self.hidden_layer_nbr
+                                                                )
+        elif name == 'resnet':
+            self.actor, self.critic = self._create_combined_model(  self.state_layer, 
                                                                 self.action_layer, 
                                                                 self.next_state_layer, 
                                                                 self.reward_layer, 
@@ -219,17 +230,17 @@ class RLModel:
                                  hidden_layer_nbr):
         #linear_model = tf.layers.Dense(units=1)
         hd_s = tf.layers.dense(state_layer, units=hidden_layer_size, activation=tf.nn.relu)
-        hd_a1 = tf.layers.dense(tf.concat([hd_s,state_layer],1), units=hidden_layer_size, activation=tf.tanh,name='a1')
+        hd_a1 = tf.layers.dense(tf.concat([hd_s,state_layer],1), units=hidden_layer_size, activation=tf.tanh,name='ah0')
         #hd_a2 = tf.layers.dense(tf.concat([hd_a1,state_layer],1),units=hiddenlayer_size,activation=tf.nn.softplus,name='a2')
         
         actor = tf.layers.dense(hd_a1, units=1, name='actor', activation=tf.tanh)#it will take the next state as inputs
          
         hd_sa1 = tf.layers.dense(tf.concat([hd_s,self.action_layer],1),units=hidden_layer_size,activation=tf.nn.relu)
         hd_sa1bn = tf.layers.batch_normalization(hd_sa1)
-        hd_sa2 = tf.layers.dense(tf.concat([hd_sa1bn,state_layer, action_layer],1), units=hidden_layer_size,activation=tf.nn.leaky_relu)
+        hd_sa2 = tf.layers.dense(tf.concat([hd_sa1bn,state_layer, action_layer],1), units=hidden_layer_size,activation=tf.nn.relu)
         hd_sa2bn = tf.layers.batch_normalization(hd_sa2)
-        hd_sa3 = tf.layers.dense(tf.concat([hd_sa2bn,state_layer, action_layer],1), units=hidden_layer_size,activation=tf.nn.leaky_relu)
-        critic =  tf.layers.dense(hd_sa3, units=1,name='critic',activation=tf.nn.soft_plus)
+        hd_sa3 = tf.layers.dense(tf.concat([hd_sa2bn,state_layer, action_layer],1), units=hidden_layer_size,activation=tf.tanh)
+        critic =  tf.layers.dense(hd_sa3, units=1,name='critic',activation=tf.nn.softplus)
         return actor, critic
         
     def _create_basic_model(self, state_layer, 
@@ -355,41 +366,40 @@ class RLModel:
         
         self.summary_writer.add_summary(summary, i_episode)
         self.summary_writer.flush()
-    
-    
-    def get_histo_state_critic(self, state_samples, critic_values):
-        states_map = dict()
-        for pos, c in list(zip([p for p,v in state_samples], critic_values)):
-            s = np.round(pos, 2)
-            if s in states_map:
-                if states_map[s] < c:
-                    states_map[s] = c
-            else:
-                states_map.update({s:c})
-        sum_critic = sum(states_map.values()) 
-        result = []
-        for s, c in states_map.items():
-            count = int(c/sum_critic*10000)
-            result.extend([s]*count) 
-            
-        ls = sorted([[s, np.round(c[0], 2)] for s, c in states_map.items()], key=lambda x:x[1], reverse=True)
-        return result, str(ls) 
+#    
+#    
+#    def get_histo_state_critic(self, state_samples, critic_values):
+#        states_map = dict()
+#        for pos, c in list(zip([p for p,v in state_samples], critic_values)):
+#            s = np.round(pos, 2)
+#            if s in states_map:
+#                if states_map[s] < c:
+#                    states_map[s] = c
+#            else:
+#                states_map.update({s:c})
+#        sum_critic = sum(states_map.values()) 
+#        result = []
+#        for s, c in states_map.items():
+#            count = int(c/sum_critic*10000)
+#            result.extend([s]*count) 
+#            
+#        ls = sorted([[s, np.round(c[0], 2)] for s, c in states_map.items()], key=lambda x:x[1], reverse=True)
+#        return result, str(ls) 
         
 
-
-def get_state_critic_heatmap(data): 
-    mat = np.ndarray(shape=[15, 18])
-    x = np.linspace(-0.07, 0.07, 15)  
-    y = np.linspace(-1.2, 0.5, 18)
-    color = 'YlGn'
-    for i in range(data.shape[0]):
-        pos, velo, value = data[i] 
-#        print(i, pos, velo, critic)
-        idx, idy = int((velo + 0.07) *100), int((pos + 1.2) * 10)
-        
-        if abs(mat[idx, idy]) < abs(value):
-            mat[idx, idy] = value 
-        if value < 0 :
-            color = "RdYlGn"
-    fig = get_heat_map(mat, np.round(x,2), np.round(y,2), color=color) 
-    return fig
+    
+    def get_state_critic_heatmap(self, data):
+        mat = np.zeros(shape=[15, 18])
+        x = np.linspace(-0.07, 0.07, 15)
+        y = np.linspace(-1.2, 0.5, 18)
+        color = 'YlGn'
+        for i in range(data.shape[0]): 
+            pos, velo, value = data[i]  
+            #        print(i, pos, velo, critic)
+            idx, idy = int(round((velo + 0.07) *100, 0)), int(round((pos + 1.2) * 10, 0))
+            if abs(mat[idx, idy]) < abs(value):
+                mat[idx, idy] = value
+            if value < 0 :
+                color = "RdYlGn"
+        fig = self.heatmap.get_heat_map(mat, np.round(x,2), np.round(y,2), color=color)
+        return fig
